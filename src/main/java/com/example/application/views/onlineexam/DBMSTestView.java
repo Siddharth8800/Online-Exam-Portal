@@ -6,6 +6,7 @@ import com.vaadin.flow.component.accordion.Accordion;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -16,9 +17,12 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
+import org.postgresql.util.PSQLException;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+
 import java.sql.SQLException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,7 +36,7 @@ class DBMSTestView extends VerticalLayout {
     private AtomicInteger remainingTime;
     private Label timerLabel;
     int score = 0;
-    public DBMSTestView() {
+    public DBMSTestView() throws SQLException {
 
 
         //Add Heading
@@ -50,7 +54,7 @@ class DBMSTestView extends VerticalLayout {
 
         // Create submit button
         Button submitButton = new Button("Submit");
-        submitButton.addClickListener(event -> {
+        submitButton.addClickListener (event -> {
             // create confirmation dialog box
             Dialog confirmationDialog = new Dialog();
             confirmationDialog.setCloseOnEsc(true);
@@ -59,14 +63,29 @@ class DBMSTestView extends VerticalLayout {
 
             // create "yes" button on confirmation dialog box
             Button yesButton = new Button("Yes", eventYes -> {
-                // create score dialog box
-                Dialog scoreDialog = new Dialog();
-                scoreDialog.setCloseOnEsc(false);
-                scoreDialog.setCloseOnOutsideClick(false);
-                scoreDialog.add(new Text("Your score is " + score+ "!")); // replace with actual score
-                scoreDialog.open();
+              try {
+                  saveToDatabase(score);
+              }
 
-                confirmationDialog.close();
+              catch (PSQLException e) {
+                  confirmationDialog.close();
+                  e.printStackTrace();
+                  Dialog err = new Dialog();
+                  err.add(new Text("Multiple submissions not permitted"));
+                  err.open();
+                  err.setCloseOnOutsideClick(true);
+
+              }
+              catch (SQLException e) {
+                  e.printStackTrace();
+                  Dialog err = new Dialog();
+                  err.add(new Text("Error saving test. Contact admin"));
+                  err.open();
+                  err.setCloseOnOutsideClick(true);
+              }
+              UI.getCurrent().navigate("hello");
+              confirmationDialog.close();
+
             });
 
             // create "no" button on confirmation dialog box
@@ -179,7 +198,18 @@ class DBMSTestView extends VerticalLayout {
                     dialog.open();
                     scheduledFuture.cancel(false);
                     executorService.shutdown();
-                    UI.getCurrent().navigate(" ");
+                    try{
+                        saveToDatabase(score);
+                    }
+                    catch (SQLException e) {
+                        e.printStackTrace();
+                        Dialog err = new Dialog();
+                        err.add(new Text("Error submitting test. Contact admin"));
+                        err.open();
+                        err.setCloseOnOutsideClick(true);
+                    }
+                    UI.getCurrent().navigate("/hello");
+                    dialog.close();
                 }
             }));
         }, 0, 1, TimeUnit.SECONDS); // schedule to run every 1 second
@@ -190,7 +220,27 @@ class DBMSTestView extends VerticalLayout {
         timerLabel.getElement().getStyle().set("left", "10px");
         add(timerLabel);
     }
-    private void saveToDatabase() {
+    private void saveToDatabase(int score) throws SQLException {
+        String name = "", enroll = "", department = "";
+        String username = (String) VaadinSession.getCurrent().getAttribute("key");
+
+        Connection connection = DatabaseConnection.getConnection();
+        PreparedStatement statement = connection.prepareStatement("SELECT name, enroll, department FROM students WHERE enroll = ?");
+        statement.setString(1, username);
+        ResultSet rs = statement.executeQuery();
+
+        if (rs.next()) {
+            name = rs.getString("name");
+            enroll = rs.getString("enroll");
+            department = rs.getString("department");
+        }
+
+        statement = connection.prepareStatement("INSERT INTO result (name, enroll, department, score) VALUES (?, ?, ?, ?)");
+        statement.setString(1, name);
+        statement.setString(2, enroll);
+        statement.setString(3, department);
+        statement.setInt(4, score);
+        statement.executeUpdate();
 
     }
 
