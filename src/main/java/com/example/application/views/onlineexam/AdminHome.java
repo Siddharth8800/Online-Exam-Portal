@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-//---------------- Bean class for database----------
+//---------------- Bean class for Query database----------
 class Query {
     private String namee;
     private String enrolll;
@@ -52,11 +52,81 @@ class Query {
     }
 }
 //------------------------------
+
+
+
+//--------------- Bean class for Result database---------
+class Result {
+    private String namee;
+    private String enrollll;
+    private String department;
+    private int score;
+
+    public Result(String namee, String enrollll, String department, int score) {
+        this.namee = namee;
+        this.enrollll = enrollll;
+        this.department = department;
+        this.score = score;
+    }
+
+    public String getNamee() {
+        return namee;
+    }
+
+    public String getEnrollll() {
+        return enrollll;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public int getScore() {
+        return score;
+    }
+}
+//------------------------------------------------------
+
+
+
+
 @Route(value = "/adminHome")
 public class AdminHome extends VerticalLayout {
     Grid<Query> grid = new Grid<>();
+    Grid<Result> grid1 = new Grid<>();
     private final Button logout = new Button("Logout");
     AdminHome() throws SQLException {
+
+        //-----------------Result Grid------------------------------------
+        List<Result> records = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            String sql = "SELECT name, enroll, department, score FROM result";
+            PreparedStatement statement = connection.prepareStatement(sql);
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) {
+                String namee = resultSet.getString("name");
+                String enroll = resultSet.getString("enroll");
+                String department = resultSet.getString("department");
+                int marks = resultSet.getInt("score");
+
+                records.add(new Result(namee, enroll, department, marks));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        grid1.setItems(records);
+        grid1.addColumn(Result::getNamee).setHeader("Name");
+        grid1.addColumn(Result::getEnrollll).setHeader("Enrollment Number");
+        grid1.addColumn(Result::getDepartment).setHeader("Department");
+        grid1.addColumn(Result::getScore).setHeader("Score");
+        grid1.setAllRowsVisible(true);
+        grid1.setSelectionMode(Grid.SelectionMode.MULTI);
+
+
+
+        //-----------------Query Grid--------------------------------------------
         List<Query> students = new ArrayList<>();
         try (Connection connection = DatabaseConnection.getConnection()) {
             String sql = "SELECT namee, enrolll, department, query FROM request";
@@ -76,16 +146,16 @@ public class AdminHome extends VerticalLayout {
         }
 
         grid.setItems(students);
-
         grid.addColumn(Query::getNamee).setHeader("Name");
         grid.addColumn(Query::getenroll).setHeader("Enrollment Number");
         grid.addColumn(Query::getDepartment).setHeader("Department");
         grid.addColumn(Query::getQuery).setHeader("Query").setWidth("700px");
         grid.setAllRowsVisible(true);
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
+        //----------------------------------------------------------------
 
         logout.getElement().getStyle().set("position", "fixed");
-        logout.getElement().getStyle().set("top", "55px");
+        logout.getElement().getStyle().set("top", "35px");
         logout.getElement().getStyle().set("right", "35px");
 
         //------Logout button-------
@@ -139,6 +209,6 @@ public class AdminHome extends VerticalLayout {
 
         //------------------------------------------------------
 
-        add(new H1(ans), new H2("Student's Queries"), grid, logout);
+        add(new H1(ans),new H2("Student's Results"),grid1, new H2("Student's Queries"), grid, logout);
     }
 }
